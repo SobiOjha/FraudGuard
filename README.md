@@ -46,45 +46,45 @@ The system:
 
 Transaction Input
 
-&#x20;      |
+      |
 
-&#x20;      v
+      v
 
 Three-Eye Analysis
 
-&#x20;      |
+      |
 
-&#x20;      v
+      v
 
 Behavioral Risk Scoring
 
-&#x20;      |
+      |
 
-&#x20;      v
+      v
 
 Risk Classification
 
-&#x20;      |
+      |
 
-&#x20;      v
+      v
 
 Explainable Fraud Decision
 
-&#x20;      |
+      |
 
-&#x20;      v
+      v
 
 APPROVE / FLAG / BLOCK
 
-&#x20;      |
+      |
 
-&#x20;      v
+      v
 
 PostgreSQL
 
-&#x20;      |
+      |
 
-&#x20;      v
+      v
 
 Dashboard
 
