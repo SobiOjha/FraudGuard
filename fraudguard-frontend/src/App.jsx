@@ -17,11 +17,6 @@ const scenarios = {
     transactionType: "TRANSFER",
     location: "Delhi",
     deviceId: "DEVICE-01",
-    isNewRecipient: false,
-    isNewDevice: false,
-    recentTransactionCount: 1,
-    transactionsInTimeWindow: 1,
-    repeatedTransactionsToRecipient: 0,
   },
 
   SUSPICIOUS: {
@@ -32,11 +27,6 @@ const scenarios = {
     transactionType: "TRANSFER",
     location: "Delhi",
     deviceId: "DEVICE-NEW",
-    isNewRecipient: true,
-    isNewDevice: true,
-    recentTransactionCount: 5,
-    transactionsInTimeWindow: 4,
-    repeatedTransactionsToRecipient: 2,
   },
 
   HIGH_RISK: {
@@ -47,11 +37,6 @@ const scenarios = {
     transactionType: "TRANSFER",
     location: "Mumbai",
     deviceId: "DEVICE-NEW",
-    isNewRecipient: true,
-    isNewDevice: true,
-    recentTransactionCount: 10,
-    transactionsInTimeWindow: 8,
-    repeatedTransactionsToRecipient: 5,
   },
 };
 
@@ -135,14 +120,6 @@ function App() {
         transactionType: scenario.transactionType,
         location: scenario.location,
         deviceId: scenario.deviceId,
-        newRecipient: scenario.isNewRecipient,
-        newDevice: scenario.isNewDevice,
-        recentTransactionCount:
-          scenario.recentTransactionCount,
-        transactionsInTimeWindow:
-          scenario.transactionsInTimeWindow,
-        repeatedTransactionsToRecipient:
-          scenario.repeatedTransactionsToRecipient,
         riskScore: result.riskScore,
         riskLevel: result.riskLevel,
         reasons: result.reasons,
@@ -931,11 +908,11 @@ function App() {
 
                     {selectedTransaction.fraudAction ===
                     "BLOCK"
-                      ? "Protected mode blocked this high-risk transaction."
+                      ? "The transaction was blocked by the active protection policy."
                       : selectedTransaction.fraudAction ===
                           "FLAG"
-                        ? "Caution mode flagged this transaction for review."
-                        : "The transaction is currently approved."}
+                        ? "The transaction was flagged for review by the active protection policy."
+                        : "The transaction is currently approved by the active protection policy."}
 
                   </p>
 
