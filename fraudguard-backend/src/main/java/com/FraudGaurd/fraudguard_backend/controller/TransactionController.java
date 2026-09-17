@@ -12,7 +12,10 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/transactions")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {
+        "http://localhost:5173",
+        "https://sentinel-frontend-5l8x.onrender.com"
+})
 public class TransactionController {
 
     private final TransactionService transactionService;
