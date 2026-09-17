@@ -1,7 +1,6 @@
 package com.FraudGaurd.fraudguard_backend.dto;
 
 import com.FraudGaurd.fraudguard_backend.model.ProtectionMode;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class AnalyzeTransactionRequest {
 
@@ -18,18 +17,6 @@ public class AnalyzeTransactionRequest {
     private String location;
 
     private String deviceId;
-
-    @JsonProperty("isNewRecipient")
-    private boolean newRecipient;
-
-    @JsonProperty("isNewDevice")
-    private boolean newDevice;
-
-    private int recentTransactionCount;
-
-    private int transactionsInTimeWindow;
-
-    private int repeatedTransactionsToRecipient;
 
     private ProtectionMode protectionMode;
 
@@ -95,55 +82,6 @@ public class AnalyzeTransactionRequest {
     public void setDeviceId(String deviceId) {
         this.deviceId = deviceId;
     }
-
-
-    public boolean isNewRecipient() {
-        return newRecipient;
-    }
-
-    public void setNewRecipient(boolean newRecipient) {
-        this.newRecipient = newRecipient;
-    }
-
-
-    public boolean isNewDevice() {
-        return newDevice;
-    }
-
-    public void setNewDevice(boolean newDevice) {
-        this.newDevice = newDevice;
-    }
-
-
-    public int getRecentTransactionCount() {
-        return recentTransactionCount;
-    }
-
-    public void setRecentTransactionCount(int recentTransactionCount) {
-        this.recentTransactionCount = recentTransactionCount;
-    }
-
-
-    public int getTransactionsInTimeWindow() {
-        return transactionsInTimeWindow;
-    }
-
-    public void setTransactionsInTimeWindow(int transactionsInTimeWindow) {
-        this.transactionsInTimeWindow = transactionsInTimeWindow;
-    }
-
-
-    public int getRepeatedTransactionsToRecipient() {
-        return repeatedTransactionsToRecipient;
-    }
-
-    public void setRepeatedTransactionsToRecipient(
-            int repeatedTransactionsToRecipient) {
-
-        this.repeatedTransactionsToRecipient =
-                repeatedTransactionsToRecipient;
-    }
-
 
     public ProtectionMode getProtectionMode() {
         return protectionMode;

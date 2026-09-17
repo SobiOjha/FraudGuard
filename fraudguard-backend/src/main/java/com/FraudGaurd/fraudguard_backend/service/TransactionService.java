@@ -30,8 +30,51 @@ public class TransactionService {
     public AnalyzeTransactionResponse analyzeTransaction(
             AnalyzeTransactionRequest request) {
 
+        LocalDateTime now = LocalDateTime.now();
+
+        LocalDateTime last24Hours = now.minusHours(24);
+        LocalDateTime last10Minutes = now.minusMinutes(10);
+
+        long recentTransactionCount =
+                transactionRepository.countRecentTransactions(
+                        request.getUserId(),
+                        last24Hours
+                );
+
+        long transactionsInTimeWindow =
+                transactionRepository.countRecentTransactions(
+                        request.getUserId(),
+                        last10Minutes
+                );
+
+        long repeatedTransactionsToRecipient =
+                transactionRepository.countTransactionsToRecipient(
+                        request.getUserId(),
+                        request.getRecipient(),
+                        last24Hours
+                );
+
+        boolean isNewRecipient =
+                transactionRepository.countPreviousTransactionsToRecipient(
+                        request.getUserId(),
+                        request.getRecipient()
+                ) == 0;
+
+        boolean isNewDevice =
+                transactionRepository.countPreviousTransactionsFromDevice(
+                        request.getUserId(),
+                        request.getDeviceId()
+                ) == 0;
+
         AnalyzeTransactionResponse analysis =
-                fraudAnalysisService.analyze(request);
+                fraudAnalysisService.analyze(
+                        request,
+                        (int) recentTransactionCount,
+                        (int) transactionsInTimeWindow,
+                        (int) repeatedTransactionsToRecipient,
+                        isNewRecipient,
+                        isNewDevice
+                );
 
         FraudAction action =
                 fraudProtectionService.decideAction(
@@ -49,19 +92,19 @@ public class TransactionService {
         transaction.setLocation(request.getLocation());
         transaction.setDeviceId(request.getDeviceId());
 
-        transaction.setNewRecipient(request.isNewRecipient());
-        transaction.setNewDevice(request.isNewDevice());
+        transaction.setNewRecipient(isNewRecipient);
+        transaction.setNewDevice(isNewDevice);
 
         transaction.setRecentTransactionCount(
-                request.getRecentTransactionCount()
+                (int) recentTransactionCount
         );
 
         transaction.setTransactionsInTimeWindow(
-                request.getTransactionsInTimeWindow()
+                (int) transactionsInTimeWindow
         );
 
         transaction.setRepeatedTransactionsToRecipient(
-                request.getRepeatedTransactionsToRecipient()
+                (int) repeatedTransactionsToRecipient
         );
 
         transaction.setRiskScore(
@@ -80,9 +123,7 @@ public class TransactionService {
                 analysis.getReasons()
         );
 
-        transaction.setAnalyzedAt(
-                LocalDateTime.now()
-        );
+        transaction.setAnalyzedAt(now);
 
         transactionRepository.save(transaction);
 
