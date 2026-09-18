@@ -1,5 +1,7 @@
 package com.FraudGaurd.fraudguard_backend.service;
 
+import com.FraudGaurd.fraudguard_backend.ExceptionHandler.InvalidFraudActionException;
+import com.FraudGaurd.fraudguard_backend.ExceptionHandler.TransactionNotFoundException;
 import com.FraudGaurd.fraudguard_backend.dto.AnalyzeTransactionRequest;
 import com.FraudGaurd.fraudguard_backend.dto.AnalyzeTransactionResponse;
 import com.FraudGaurd.fraudguard_backend.dto.DashboardStatsResponse;
@@ -151,8 +153,7 @@ public class TransactionService {
                         .countByRiskScoreLessThan(30);
 
         long blockedTransactions =
-                transactionRepository
-                        .countByFraudAction("BLOCK");
+                transactionRepository.countByFraudAction("BLOCK");
 
         Double averageRiskScore =
                 transactionRepository.findAverageRiskScore();
@@ -177,7 +178,7 @@ public class TransactionService {
         Transaction transaction =
                 transactionRepository.findById(transactionId)
                         .orElseThrow(() ->
-                                new RuntimeException(
+                                new TransactionNotFoundException(
                                         "Transaction not found with ID: "
                                                 + transactionId
                                 )
@@ -187,7 +188,7 @@ public class TransactionService {
                 && !action.equals("FLAG")
                 && !action.equals("BLOCK")) {
 
-            throw new IllegalArgumentException(
+            throw new InvalidFraudActionException(
                     "Invalid fraud action: " + action
             );
         }

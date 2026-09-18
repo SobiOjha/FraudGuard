@@ -30,4 +30,40 @@ public class GlobalExceptionHandler {
 
         return errors;
     }
+
+    @ExceptionHandler(TransactionNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Map<String, String> handleTransactionNotFound(
+            TransactionNotFoundException exception) {
+
+        Map<String, String> error = new HashMap<>();
+
+        error.put("error", exception.getMessage());
+
+        return error;
+    }
+
+    @ExceptionHandler(InvalidFraudActionException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, String> handleInvalidFraudAction(
+            InvalidFraudActionException exception) {
+
+        Map<String, String> error = new HashMap<>();
+
+        error.put("error", exception.getMessage());
+
+        return error;
+    }
+
+    @ExceptionHandler(Exception.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public Map<String, String> handleGeneralException(
+            Exception exception) {
+
+        Map<String, String> error = new HashMap<>();
+
+        error.put("error", "An unexpected error occurred");
+
+        return error;
+    }
 }
