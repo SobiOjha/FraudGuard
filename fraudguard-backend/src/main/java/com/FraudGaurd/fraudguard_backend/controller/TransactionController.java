@@ -6,6 +6,7 @@ import com.FraudGaurd.fraudguard_backend.dto.DashboardStatsResponse;
 import com.FraudGaurd.fraudguard_backend.dto.UpdateFraudActionRequest;
 import com.FraudGaurd.fraudguard_backend.model.Transaction;
 import com.FraudGaurd.fraudguard_backend.service.TransactionService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,7 +29,7 @@ public class TransactionController {
 
     @PostMapping("/analyze")
     public AnalyzeTransactionResponse analyzeTransaction(
-            @RequestBody AnalyzeTransactionRequest request) {
+            @Valid @RequestBody AnalyzeTransactionRequest request) {
 
         return transactionService.analyzeTransaction(request);
     }
