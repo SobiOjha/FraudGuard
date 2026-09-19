@@ -1,11 +1,38 @@
 package com.FraudGaurd.fraudguard_backend.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
+@Schema(description = "Aggregated fraud analysis statistics used by the FraudGuard dashboard")
 public class DashboardStatsResponse {
 
+    @Schema(
+            description = "Total number of analyzed transactions",
+            example = "150"
+    )
     private long totalTransactions;
+
+    @Schema(
+            description = "Number of transactions classified as high risk",
+            example = "32"
+    )
     private long highRiskTransactions;
+
+    @Schema(
+            description = "Average risk score across analyzed transactions",
+            example = "42.75"
+    )
     private Double averageRiskScore;
+
+    @Schema(
+            description = "Number of transactions classified as safe",
+            example = "98"
+    )
     private long safeTransactions;
+
+    @Schema(
+            description = "Number of transactions that were blocked by the fraud protection system",
+            example = "20"
+    )
     private long blockedTransactions;
 
     public DashboardStatsResponse(
