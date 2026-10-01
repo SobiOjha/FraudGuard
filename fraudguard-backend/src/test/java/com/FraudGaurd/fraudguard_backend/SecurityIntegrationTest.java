@@ -3,9 +3,11 @@ package com.FraudGaurd.fraudguard_backend;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.FraudGaurd.fraudguard_backend.model.Integration;
+import com.FraudGaurd.fraudguard_backend.model.Transaction;
 import com.FraudGaurd.fraudguard_backend.model.User;
 import com.FraudGaurd.fraudguard_backend.model.UserRole;
 import com.FraudGaurd.fraudguard_backend.repository.IntegrationRepository;
+import com.FraudGaurd.fraudguard_backend.repository.TransactionRepository;
 import com.FraudGaurd.fraudguard_backend.repository.UserRepository;
 import com.FraudGaurd.fraudguard_backend.service.ApiKeyService;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +25,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -50,6 +53,9 @@ class SecurityIntegrationTest {
     private IntegrationRepository integrationRepository;
 
     @Autowired
+    private TransactionRepository transactionRepository;
+
+    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -58,6 +64,7 @@ class SecurityIntegrationTest {
 
     @BeforeEach
     void cleanDatabase() {
+        transactionRepository.deleteAll();
         integrationRepository.deleteAll();
         userRepository.deleteAll();
     }
@@ -109,6 +116,113 @@ class SecurityIntegrationTest {
                                 }
                                 """))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void transactionsAreOwnedByAuthenticatedIntegrationOnly()
+            throws Exception {
+        ApiKeyService.CreatedIntegration integrationA =
+                apiKeyService.createIntegration("Integration A");
+        ApiKeyService.CreatedIntegration integrationB =
+                apiKeyService.createIntegration("Integration B");
+
+        mockMvc.perform(post("/api/transactions/analyze")
+                        .header("X-API-Key", integrationA.rawApiKey())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "userId": "U1001",
+                                    "integrationId": %d,
+                                    "amount": 1000,
+                                    "currency": "INR",
+                                    "recipient": "RECIPIENT-A",
+                                    "transactionType": "TRANSFER",
+                                    "location": "Delhi",
+                                    "deviceId": "DEVICE-A",
+                                    "protectionMode": "NORMAL"
+                                }
+                                """.formatted(integrationB.integration().getId())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/transactions/analyze")
+                        .header("X-API-Key", integrationB.rawApiKey())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "userId": "U1001",
+                                    "amount": 1000,
+                                    "currency": "INR",
+                                    "recipient": "RECIPIENT-B",
+                                    "transactionType": "TRANSFER",
+                                    "location": "Delhi",
+                                    "deviceId": "DEVICE-B",
+                                    "protectionMode": "NORMAL"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        Transaction transactionA = transactionRepository.findAll().stream()
+                .filter(transaction -> "RECIPIENT-A"
+                        .equals(transaction.getRecipient()))
+                .findFirst()
+                .orElseThrow();
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                integrationA.integration().getId(),
+                transactionA.getIntegration().getId()
+        );
+
+        mockMvc.perform(get("/api/transactions")
+                        .header("X-API-Key", integrationA.rawApiKey()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].recipient").value("RECIPIENT-A"))
+                .andExpect(jsonPath("$[0].integration").doesNotExist());
+
+        mockMvc.perform(get("/api/transactions")
+                        .header("X-API-Key", integrationB.rawApiKey()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].recipient").value("RECIPIENT-B"));
+    }
+
+    @Test
+    void integrationCannotUpdateAnotherIntegrationsTransaction()
+            throws Exception {
+        ApiKeyService.CreatedIntegration integrationA =
+                apiKeyService.createIntegration("Integration A");
+        ApiKeyService.CreatedIntegration integrationB =
+                apiKeyService.createIntegration("Integration B");
+
+        MvcResult result = mockMvc.perform(post("/api/transactions/analyze")
+                        .header("X-API-Key", integrationA.rawApiKey())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "userId": "U1001",
+                                    "amount": 1000,
+                                    "currency": "INR",
+                                    "recipient": "RECIPIENT-A",
+                                    "transactionType": "TRANSFER",
+                                    "location": "Delhi",
+                                    "deviceId": "DEVICE-A",
+                                    "protectionMode": "NORMAL"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        long transactionId = objectMapper.readTree(
+                result.getResponse().getContentAsString())
+                .get("transactionId")
+                .asLong();
+
+        mockMvc.perform(put("/api/transactions/" + transactionId
+                        + "/fraud-action")
+                        .header("X-API-Key", integrationB.rawApiKey())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"BLOCK\"}"))
+                .andExpect(status().isNotFound());
     }
 
     @Test

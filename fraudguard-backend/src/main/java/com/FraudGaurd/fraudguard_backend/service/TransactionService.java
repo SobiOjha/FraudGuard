@@ -5,6 +5,7 @@ import com.FraudGaurd.fraudguard_backend.ExceptionHandler.TransactionNotFoundExc
 import com.FraudGaurd.fraudguard_backend.dto.AnalyzeTransactionRequest;
 import com.FraudGaurd.fraudguard_backend.dto.AnalyzeTransactionResponse;
 import com.FraudGaurd.fraudguard_backend.dto.DashboardStatsResponse;
+import com.FraudGaurd.fraudguard_backend.model.Integration;
 import com.FraudGaurd.fraudguard_backend.model.Transaction;
 import com.FraudGaurd.fraudguard_backend.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
@@ -18,15 +19,18 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final FraudAnalysisService fraudAnalysisService;
     private final FraudProtectionService fraudProtectionService;
+    private final AuthenticatedIntegrationService authenticatedIntegrationService;
 
     public TransactionService(
             TransactionRepository transactionRepository,
             FraudAnalysisService fraudAnalysisService,
-            FraudProtectionService fraudProtectionService) {
+            FraudProtectionService fraudProtectionService,
+            AuthenticatedIntegrationService authenticatedIntegrationService) {
 
         this.transactionRepository = transactionRepository;
         this.fraudAnalysisService = fraudAnalysisService;
         this.fraudProtectionService = fraudProtectionService;
+        this.authenticatedIntegrationService = authenticatedIntegrationService;
     }
 
     public AnalyzeTransactionResponse analyzeTransaction(
@@ -36,21 +40,26 @@ public class TransactionService {
 
         LocalDateTime last24Hours = now.minusHours(24);
         LocalDateTime last10Minutes = now.minusMinutes(10);
+        Integration integration =
+                authenticatedIntegrationService.getRequiredIntegration();
 
         long recentTransactionCount =
                 transactionRepository.countRecentTransactions(
+                        integration,
                         request.getUserId(),
                         last24Hours
                 );
 
         long transactionsInTimeWindow =
                 transactionRepository.countRecentTransactions(
+                        integration,
                         request.getUserId(),
                         last10Minutes
                 );
 
         long repeatedTransactionsToRecipient =
                 transactionRepository.countTransactionsToRecipient(
+                        integration,
                         request.getUserId(),
                         request.getRecipient(),
                         last24Hours
@@ -58,12 +67,14 @@ public class TransactionService {
 
         boolean isNewRecipient =
                 transactionRepository.countPreviousTransactionsToRecipient(
+                        integration,
                         request.getUserId(),
                         request.getRecipient()
                 ) == 0;
 
         boolean isNewDevice =
                 transactionRepository.countPreviousTransactionsFromDevice(
+                        integration,
                         request.getUserId(),
                         request.getDeviceId()
                 ) == 0;
@@ -86,6 +97,7 @@ public class TransactionService {
 
         Transaction transaction = new Transaction();
 
+        transaction.setIntegration(integration);
         transaction.setUserId(request.getUserId());
         transaction.setAmount(request.getAmount());
         transaction.setCurrency(request.getCurrency());
@@ -136,27 +148,40 @@ public class TransactionService {
     }
 
     public List<Transaction> getAllTransactions() {
-        return transactionRepository.findAll();
+        return transactionRepository.findAllByIntegration(
+                authenticatedIntegrationService.getRequiredIntegration()
+        );
     }
 
     public DashboardStatsResponse getDashboardStats() {
+        Integration integration =
+                authenticatedIntegrationService.getRequiredIntegration();
 
         long totalTransactions =
-                transactionRepository.count();
+                transactionRepository.countByIntegration(integration);
 
         long highRiskTransactions =
                 transactionRepository
-                        .countByRiskScoreGreaterThanEqual(60);
+                        .countByIntegrationAndRiskScoreGreaterThanEqual(
+                                integration,
+                                60
+                        );
 
         long safeTransactions =
                 transactionRepository
-                        .countByRiskScoreLessThan(30);
+                        .countByIntegrationAndRiskScoreLessThan(
+                                integration,
+                                30
+                        );
 
         long blockedTransactions =
-                transactionRepository.countByFraudAction("BLOCK");
+                transactionRepository.countByIntegrationAndFraudAction(
+                        integration,
+                        "BLOCK"
+                );
 
         Double averageRiskScore =
-                transactionRepository.findAverageRiskScore();
+                transactionRepository.findAverageRiskScore(integration);
 
         if (averageRiskScore == null) {
             averageRiskScore = 0.0;
@@ -176,7 +201,10 @@ public class TransactionService {
             String action) {
 
         Transaction transaction =
-                transactionRepository.findById(transactionId)
+                transactionRepository.findByIdAndIntegration(
+                        transactionId,
+                        authenticatedIntegrationService.getRequiredIntegration()
+                )
                         .orElseThrow(() ->
                                 new TransactionNotFoundException(
                                         "Transaction not found with ID: "

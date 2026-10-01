@@ -1,5 +1,6 @@
 package com.FraudGaurd.fraudguard_backend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
@@ -12,6 +13,11 @@ public class Transaction {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "integration_id", nullable = false)
+    private Integration integration;
 
     private String userId;
 
@@ -50,6 +56,14 @@ public class Transaction {
 
     public Long getId() {
         return id;
+    }
+
+    public Integration getIntegration() {
+        return integration;
+    }
+
+    public void setIntegration(Integration integration) {
+        this.integration = integration;
     }
 
     public String getUserId() {

@@ -5,9 +5,11 @@ import com.FraudGaurd.fraudguard_backend.ExceptionHandler.TransactionNotFoundExc
 import com.FraudGaurd.fraudguard_backend.dto.AnalyzeTransactionRequest;
 import com.FraudGaurd.fraudguard_backend.dto.AnalyzeTransactionResponse;
 import com.FraudGaurd.fraudguard_backend.dto.DashboardStatsResponse;
+import com.FraudGaurd.fraudguard_backend.model.Integration;
 import com.FraudGaurd.fraudguard_backend.model.ProtectionMode;
 import com.FraudGaurd.fraudguard_backend.model.Transaction;
 import com.FraudGaurd.fraudguard_backend.repository.TransactionRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -34,8 +36,20 @@ class TransactionServiceTest {
     @Mock
     private FraudProtectionService fraudProtectionService;
 
+    @Mock
+    private AuthenticatedIntegrationService authenticatedIntegrationService;
+
+    private final Integration integration =
+            new Integration("Test Integration", "test-hash");
+
     @InjectMocks
     private TransactionService transactionService;
+
+    @BeforeEach
+    void setUpAuthenticatedIntegration() {
+        when(authenticatedIntegrationService.getRequiredIntegration())
+                .thenReturn(integration);
+    }
 
 
     @Test
@@ -53,24 +67,28 @@ class TransactionServiceTest {
                 );
 
         when(transactionRepository.countRecentTransactions(
+                eq(integration),
                 eq("U1001"),
                 any()
         )).thenReturn(5L);
 
         when(transactionRepository.countTransactionsToRecipient(
+                eq(integration),
                 eq("U1001"),
                 eq("RECIPIENT-01"),
                 any()
         )).thenReturn(2L);
 
         when(transactionRepository.countPreviousTransactionsToRecipient(
-                "U1001",
-                "RECIPIENT-01"
+                eq(integration),
+                eq("U1001"),
+                eq("RECIPIENT-01")
         )).thenReturn(0L);
 
         when(transactionRepository.countPreviousTransactionsFromDevice(
-                "U1001",
-                "DEVICE-01"
+                eq(integration),
+                eq("U1001"),
+                eq("DEVICE-01")
         )).thenReturn(0L);
 
         when(fraudAnalysisService.analyze(
@@ -122,24 +140,28 @@ class TransactionServiceTest {
                 );
 
         when(transactionRepository.countRecentTransactions(
+                eq(integration),
                 eq("U1001"),
                 any()
         )).thenReturn(7L);
 
         when(transactionRepository.countTransactionsToRecipient(
+                eq(integration),
                 eq("U1001"),
                 eq("RECIPIENT-01"),
                 any()
         )).thenReturn(3L);
 
         when(transactionRepository.countPreviousTransactionsToRecipient(
-                "U1001",
-                "RECIPIENT-01"
+                eq(integration),
+                eq("U1001"),
+                eq("RECIPIENT-01")
         )).thenReturn(0L);
 
         when(transactionRepository.countPreviousTransactionsFromDevice(
-                "U1001",
-                "DEVICE-01"
+                eq(integration),
+                eq("U1001"),
+                eq("DEVICE-01")
         )).thenReturn(1L);
 
         when(fraudAnalysisService.analyze(
@@ -186,19 +208,30 @@ class TransactionServiceTest {
     @Test
     void getDashboardStatsShouldReturnCorrectStatistics() {
 
-        when(transactionRepository.count())
+        when(transactionRepository.countByIntegration(integration))
                 .thenReturn(20L);
 
-        when(transactionRepository.countByRiskScoreGreaterThanEqual(60))
+        when(transactionRepository
+                .countByIntegrationAndRiskScoreGreaterThanEqual(
+                        integration,
+                        60
+                ))
                 .thenReturn(6L);
 
-        when(transactionRepository.countByRiskScoreLessThan(30))
+        when(transactionRepository
+                .countByIntegrationAndRiskScoreLessThan(
+                        integration,
+                        30
+                ))
                 .thenReturn(10L);
 
-        when(transactionRepository.countByFraudAction("BLOCK"))
+        when(transactionRepository.countByIntegrationAndFraudAction(
+                integration,
+                "BLOCK"
+        ))
                 .thenReturn(3L);
 
-        when(transactionRepository.findAverageRiskScore())
+        when(transactionRepository.findAverageRiskScore(integration))
                 .thenReturn(42.5);
 
         DashboardStatsResponse response =
@@ -215,19 +248,30 @@ class TransactionServiceTest {
     @Test
     void getDashboardStatsShouldReturnZeroAverageWhenNoTransactions() {
 
-        when(transactionRepository.count())
+        when(transactionRepository.countByIntegration(integration))
                 .thenReturn(0L);
 
-        when(transactionRepository.countByRiskScoreGreaterThanEqual(60))
+        when(transactionRepository
+                .countByIntegrationAndRiskScoreGreaterThanEqual(
+                        integration,
+                        60
+                ))
                 .thenReturn(0L);
 
-        when(transactionRepository.countByRiskScoreLessThan(30))
+        when(transactionRepository
+                .countByIntegrationAndRiskScoreLessThan(
+                        integration,
+                        30
+                ))
                 .thenReturn(0L);
 
-        when(transactionRepository.countByFraudAction("BLOCK"))
+        when(transactionRepository.countByIntegrationAndFraudAction(
+                integration,
+                "BLOCK"
+        ))
                 .thenReturn(0L);
 
-        when(transactionRepository.findAverageRiskScore())
+        when(transactionRepository.findAverageRiskScore(integration))
                 .thenReturn(null);
 
         DashboardStatsResponse response =
@@ -247,7 +291,7 @@ class TransactionServiceTest {
         Transaction transaction1 = new Transaction();
         Transaction transaction2 = new Transaction();
 
-        when(transactionRepository.findAll())
+        when(transactionRepository.findAllByIntegration(integration))
                 .thenReturn(List.of(transaction1, transaction2));
 
         List<Transaction> transactions =
@@ -255,7 +299,7 @@ class TransactionServiceTest {
 
         assertEquals(2, transactions.size());
 
-        verify(transactionRepository).findAll();
+        verify(transactionRepository).findAllByIntegration(integration);
     }
 
 
@@ -264,7 +308,7 @@ class TransactionServiceTest {
 
         Transaction transaction = new Transaction();
 
-        when(transactionRepository.findById(1L))
+        when(transactionRepository.findByIdAndIntegration(1L, integration))
                 .thenReturn(Optional.of(transaction));
 
         when(transactionRepository.save(transaction))
@@ -285,7 +329,7 @@ class TransactionServiceTest {
     @Test
     void updateFraudActionShouldThrowWhenTransactionDoesNotExist() {
 
-        when(transactionRepository.findById(999L))
+        when(transactionRepository.findByIdAndIntegration(999L, integration))
                 .thenReturn(Optional.empty());
 
         assertThrows(
@@ -306,7 +350,7 @@ class TransactionServiceTest {
 
         Transaction transaction = new Transaction();
 
-        when(transactionRepository.findById(1L))
+        when(transactionRepository.findByIdAndIntegration(1L, integration))
                 .thenReturn(Optional.of(transaction));
 
         assertThrows(

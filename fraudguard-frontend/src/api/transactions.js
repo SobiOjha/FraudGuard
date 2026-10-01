@@ -1,6 +1,42 @@
-const BASE_URL =
-    import.meta.env.VITE_API_BASE_URL ||
-    "http://localhost:8080/api/transactions";
+const BASE_URL = "/bff/transactions";
+
+async function parseResponse(response, fallbackMessage) {
+    if (response.ok) return response.json();
+
+    const error = new Error(fallbackMessage);
+    error.status = response.status;
+
+    try {
+        const body = await response.json();
+        if (body?.error) error.message = body.error;
+    } catch {
+        // Keep the safe fallback message when the response is not JSON.
+    }
+
+    throw error;
+}
+
+export async function login(username, password) {
+    const response = await fetch("/bff/auth/login", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({ username, password }),
+    });
+
+    return parseResponse(response, "Dashboard authentication failed");
+}
+
+export async function logout() {
+    const response = await fetch("/bff/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+    });
+
+    return parseResponse(response, "Dashboard logout failed");
+}
 
 export async function analyzeTransaction(transactionData) {
     const response = await fetch(`${BASE_URL}/analyze`, {
@@ -8,38 +44,28 @@ export async function analyzeTransaction(transactionData) {
         headers: {
             "Content-Type": "application/json",
         },
+        credentials: "same-origin",
         body: JSON.stringify(transactionData),
     });
 
-    if (!response.ok) {
-        throw new Error("Failed to analyze transaction");
-    }
-
-    return response.json();
+    return parseResponse(response, "Failed to analyze transaction");
 }
 
 export async function getTransactions() {
-    const response = await fetch(BASE_URL);
+    const response = await fetch(BASE_URL, {
+        credentials: "same-origin",
+    });
 
-    if (!response.ok) {
-        throw new Error("Failed to fetch transactions");
-    }
-
-    return response.json();
+    return parseResponse(response, "Failed to fetch transactions");
 }
 
 export async function getDashboardStats() {
     const response = await fetch(
-        `${BASE_URL}/dashboard/stats`
+        `${BASE_URL}/dashboard/stats`,
+        { credentials: "same-origin" }
     );
 
-    if (!response.ok) {
-        throw new Error(
-            "Failed to fetch dashboard statistics"
-        );
-    }
-
-    return response.json();
+    return parseResponse(response, "Failed to fetch dashboard statistics");
 }
 
 export async function updateFraudAction(
@@ -53,17 +79,12 @@ export async function updateFraudAction(
             headers: {
                 "Content-Type": "application/json",
             },
+            credentials: "same-origin",
             body: JSON.stringify({
                 action,
             }),
         }
     );
 
-    if (!response.ok) {
-        throw new Error(
-            "Failed to update fraud action"
-        );
-    }
-
-    return response.json();
+    return parseResponse(response, "Failed to update fraud action");
 }

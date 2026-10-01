@@ -1,6 +1,8 @@
 package com.FraudGaurd.fraudguard_backend.repository;
 
+import com.FraudGaurd.fraudguard_backend.model.Integration;
 import com.FraudGaurd.fraudguard_backend.model.Transaction;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -20,6 +22,17 @@ class TransactionRepositoryTest {
 
     @Autowired
     private TransactionRepository transactionRepository;
+
+    @Autowired
+    private IntegrationRepository integrationRepository;
+
+    private Integration integration;
+
+    @BeforeEach
+    void setUpIntegration() {
+        integration = integrationRepository.save(
+                new Integration("Test Integration", "test-hash"));
+    }
 
 
     @Test
@@ -62,11 +75,76 @@ class TransactionRepositoryTest {
 
         long count =
                 transactionRepository.countRecentTransactions(
+                        integration,
                         "U1001",
                         now.minusHours(24)
                 );
 
         assertEquals(1, count);
+    }
+
+    @Test
+    void behavioralQueriesDoNotCrossIntegrationBoundaries() {
+        Integration otherIntegration = integrationRepository.save(
+                new Integration("Other Integration", "other-test-hash"));
+        LocalDateTime now = LocalDateTime.now();
+
+        transactionRepository.save(
+                createTransaction(
+                        "U1001",
+                        "RECIPIENT-01",
+                        "DEVICE-01",
+                        now.minusHours(1),
+                        40,
+                        "FLAG"
+                )
+        );
+
+        Transaction otherTransaction = createTransaction(
+                "U1001",
+                "RECIPIENT-01",
+                "DEVICE-01",
+                now.minusHours(1),
+                40,
+                "FLAG"
+        );
+        otherTransaction.setIntegration(otherIntegration);
+        transactionRepository.save(otherTransaction);
+
+        assertEquals(
+                1,
+                transactionRepository.countRecentTransactions(
+                        integration,
+                        "U1001",
+                        now.minusHours(24)
+                )
+        );
+        assertEquals(
+                1,
+                transactionRepository.countRecentTransactions(
+                        otherIntegration,
+                        "U1001",
+                        now.minusHours(24)
+                )
+        );
+        assertEquals(
+                1,
+                transactionRepository.countTransactionsToRecipient(
+                        integration,
+                        "U1001",
+                        "RECIPIENT-01",
+                        now.minusHours(24)
+                )
+        );
+        assertEquals(
+                1,
+                transactionRepository.countTransactionsToRecipient(
+                        otherIntegration,
+                        "U1001",
+                        "RECIPIENT-01",
+                        now.minusHours(24)
+                )
+        );
     }
 
 
@@ -110,6 +188,7 @@ class TransactionRepositoryTest {
 
         long count =
                 transactionRepository.countRecentTransactions(
+                        integration,
                         "U1001",
                         now.minusMinutes(10)
                 );
@@ -158,6 +237,7 @@ class TransactionRepositoryTest {
 
         long count =
                 transactionRepository.countTransactionsToRecipient(
+                        integration,
                         "U1001",
                         "RECIPIENT-01",
                         now.minusHours(24)
@@ -197,6 +277,7 @@ class TransactionRepositoryTest {
         long count =
                 transactionRepository
                         .countPreviousTransactionsToRecipient(
+                                integration,
                                 "U1001",
                                 "RECIPIENT-01"
                         );
@@ -235,6 +316,7 @@ class TransactionRepositoryTest {
         long count =
                 transactionRepository
                         .countPreviousTransactionsFromDevice(
+                                integration,
                                 "U1001",
                                 "DEVICE-01"
                         );
@@ -282,19 +364,28 @@ class TransactionRepositoryTest {
         assertEquals(
                 2,
                 transactionRepository
-                        .countByRiskScoreGreaterThanEqual(60)
+                        .countByIntegrationAndRiskScoreGreaterThanEqual(
+                                integration,
+                                60
+                        )
         );
 
         assertEquals(
                 1,
                 transactionRepository
-                        .countByRiskScoreLessThan(30)
+                        .countByIntegrationAndRiskScoreLessThan(
+                                integration,
+                                30
+                        )
         );
 
         assertEquals(
                 2,
                 transactionRepository
-                        .countByFraudAction("BLOCK")
+                        .countByIntegrationAndFraudAction(
+                                integration,
+                                "BLOCK"
+                        )
         );
     }
 
@@ -325,7 +416,7 @@ class TransactionRepositoryTest {
         );
 
         Double average =
-                transactionRepository.findAverageRiskScore();
+                transactionRepository.findAverageRiskScore(integration);
 
         assertEquals(40.0, average);
     }
@@ -341,6 +432,7 @@ class TransactionRepositoryTest {
 
         Transaction transaction = new Transaction();
 
+        transaction.setIntegration(integration);
         transaction.setUserId(userId);
         transaction.setAmount(1000);
         transaction.setCurrency("INR");

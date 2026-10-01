@@ -285,3 +285,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+.login-shell { display: grid; min-height: 100vh; place-items: center; padding: 24px; background-color: #0a151d; background-image: linear-gradient(rgba(77, 123, 139, 0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(77, 123, 139, 0.035) 1px, transparent 1px); background-size: 36px 36px; color: #e7f0f2; }
+.login-card { width: min(100%, 390px); padding: 28px; }
+.login-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 32px; }
+.login-card h1 { margin: 0; color: #edf5f6; font-size: 25px; font-weight: 650; }
+.login-copy { margin: 8px 0 22px; color: #9aadb5; font-size: 11px; line-height: 1.5; }
+.login-form { display: grid; gap: 14px; }
+.login-form .primary-button { width: 100%; margin-top: 5px; }
+.login-error { margin: 0 0 14px; padding: 9px 10px; border: 1px solid #68413a; background: #271c1b; color: #f0a28d; font-size: 10px; line-height: 1.4; }

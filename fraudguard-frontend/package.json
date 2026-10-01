@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node server.mjs",
+    "test:bff": "node --test server.test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

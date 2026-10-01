@@ -4,6 +4,8 @@ import {
   analyzeTransaction,
   getTransactions,
   getDashboardStats,
+  login,
+  logout,
   updateFraudAction,
 } from "./api/transactions";
 
@@ -57,6 +59,13 @@ function App() {
   const [analyzing, setAnalyzing] = useState(false);
   const [updatingAction, setUpdatingAction] = useState(false);
   const [error, setError] = useState("");
+  const [authenticated, setAuthenticated] = useState(true);
+  const [loginCredentials, setLoginCredentials] = useState({
+    username: "",
+    password: "",
+  });
+  const [loginError, setLoginError] = useState("");
+  const [loggingIn, setLoggingIn] = useState(false);
 
   useEffect(() => {
     loadDashboard();
@@ -83,11 +92,47 @@ function App() {
           (first, second) => new Date(second.analyzedAt) - new Date(first.analyzedAt),
         ),
       );
+      setAuthenticated(true);
     } catch (requestError) {
+      if (requestError.status === 401) {
+        setAuthenticated(false);
+        setStats(initialStats);
+        setTransactions([]);
+        return;
+      }
       console.error("Dashboard loading failed:", requestError);
       setError("Sentinel could not reach the transaction service. Check your connection and retry.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleLogin(event) {
+    event.preventDefault();
+    setLoggingIn(true);
+    setLoginError("");
+
+    try {
+      await login(loginCredentials.username, loginCredentials.password);
+      setLoginCredentials({ username: "", password: "" });
+      setAuthenticated(true);
+      setLoading(true);
+      await loadDashboard();
+    } catch (requestError) {
+      setLoginError(requestError.message || "Dashboard authentication failed");
+    } finally {
+      setLoggingIn(false);
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await logout();
+    } finally {
+      setAuthenticated(false);
+      setSelectedTransaction(null);
+      setTransactions([]);
+      setStats(initialStats);
     }
   }
 
@@ -132,6 +177,10 @@ function App() {
       });
       await loadDashboard();
     } catch (requestError) {
+      if (requestError.status === 401) {
+        setAuthenticated(false);
+        return;
+      }
       console.error("Transaction analysis failed:", requestError);
       setError("Analysis could not be completed. Check the service connection and try again.");
     } finally {
@@ -153,6 +202,10 @@ function App() {
       await loadDashboard();
       setSelectedTransaction(null);
     } catch (requestError) {
+      if (requestError.status === 401) {
+        setAuthenticated(false);
+        return;
+      }
       console.error("Failed to update fraud action:", requestError);
       setError("The fraud action could not be updated. Please retry.");
     } finally {
@@ -206,6 +259,21 @@ function App() {
 
   const visibleTransactions = showAllTransactions ? transactions : transactions.slice(0, 6);
 
+  if (!authenticated) {
+    return (
+      <LoginScreen
+        credentials={loginCredentials}
+        error={loginError}
+        loading={loggingIn}
+        onChange={(event) => {
+          const { name, value } = event.target;
+          setLoginCredentials((current) => ({ ...current, [name]: value }));
+        }}
+        onSubmit={handleLogin}
+      />
+    );
+  }
+
   return (
     <div className="sentinel-app">
       <header className="topbar">
@@ -218,7 +286,7 @@ function App() {
           <a className="nav-link" href="#activity">Transactions</a>
           <a className="nav-link" href="#assessment">Risk assessment</a>
         </nav>
-        <div className="header-status"><span className="status-pulse" />Protection monitoring</div>
+        <div className="header-status"><span className="status-pulse" />Protection monitoring<button className="quiet-button" type="button" onClick={handleLogout}>Sign out</button></div>
       </header>
 
       <main className="page" id="overview">
@@ -388,6 +456,36 @@ function RiskBadge({ level, riskClass }) {
 
 function ActionBadge({ action, actionClass }) {
   return <span className={`badge action-badge ${actionClass}`}>{action || "—"}</span>;
+}
+
+function LoginScreen({ credentials, error, loading, onChange, onSubmit }) {
+  return (
+    <div className="login-shell">
+      <section className="login-card surface" aria-labelledby="login-title">
+        <div className="login-brand">
+          <img className="brand-symbol" src="/sentinel-logo.png" alt="" />
+          <img className="brand-wordmark" src="/sentinel-wordmark.png" alt="Sentinel" />
+        </div>
+        <p className="eyebrow">SECURE OPERATIONS ACCESS</p>
+        <h1 id="login-title">Sign in to Sentinel</h1>
+        <p className="login-copy">Authenticate to open the protected monitoring dashboard.</p>
+        {error && <p className="login-error" role="alert">{error}</p>}
+        <form className="login-form" onSubmit={onSubmit}>
+          <label className="field">
+            <span>Username</span>
+            <input name="username" autoComplete="username" required value={credentials.username} onChange={onChange} />
+          </label>
+          <label className="field">
+            <span>Password</span>
+            <input name="password" type="password" autoComplete="current-password" required value={credentials.password} onChange={onChange} />
+          </label>
+          <button className="primary-button" type="submit" disabled={loading}>
+            {loading ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+      </section>
+    </div>
+  );
 }
 
 export default App;
