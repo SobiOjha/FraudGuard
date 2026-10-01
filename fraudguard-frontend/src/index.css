@@ -1,9 +1,17 @@
-html,
-body,
-#root {
-  min-height: 100%;
+:root {
+  font-family: "Aptos", "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-weight: 400;
+  color: #e7f0f2;
+  background: #0a151d;
 }
 
-body {
-  margin: 0;
-}
+* { box-sizing: border-box; }
+html { min-height: 100%; scroll-behavior: smooth; }
+body { min-height: 100vh; margin: 0; }
+button, input, select { font: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+::selection { color: #07171b; background: #68d6de; }
