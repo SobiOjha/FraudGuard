@@ -325,6 +325,23 @@ class TransactionControllerTest {
 
 
     @Test
+    void updateFraudActionShouldRejectMissingAction()
+            throws Exception {
+
+        mockMvc.perform(
+                        put("/api/transactions/1/fraud-action")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}")
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(
+                        jsonPath("$.action")
+                                .value("Fraud action is required")
+                );
+    }
+
+
+    @Test
     void updateFraudActionShouldReturnNotFoundForMissingTransaction()
             throws Exception {
 

@@ -100,7 +100,13 @@ function parseCookies(request) {
 
     const name = part.slice(0, separator).trim();
     const value = part.slice(separator + 1).trim();
-    if (name) cookies[name] = decodeURIComponent(value);
+    if (!name) return;
+
+    try {
+      cookies[name] = decodeURIComponent(value);
+    } catch {
+      // Ignore malformed cookie values and let protected routes require a new session.
+    }
   });
 
   return cookies;

@@ -107,7 +107,7 @@ public class TransactionController {
     })
     public Transaction updateFraudAction(
             @PathVariable Long id,
-            @RequestBody UpdateFraudActionRequest request) {
+            @Valid @RequestBody UpdateFraudActionRequest request) {
 
         return transactionService.updateFraudAction(
                 id,

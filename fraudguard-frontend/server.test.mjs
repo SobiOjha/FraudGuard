@@ -195,3 +195,29 @@ test("marks the session cookie Secure in production mode", async () => {
   assert.equal(response.status, 200);
   assert.match(response.headers.get("set-cookie"), /Secure/);
 });
+
+test("logout invalidates the browser session", async () => {
+  const baseUrl = await startServer(async () => sentinelResponse([]));
+  const cookie = await login(baseUrl);
+
+  const logoutResponse = await fetch(`${baseUrl}/bff/auth/logout`, {
+    method: "POST",
+    headers: { Cookie: cookie },
+  });
+  assert.equal(logoutResponse.status, 200);
+
+  const protectedResponse = await fetch(`${baseUrl}/bff/transactions`, {
+    headers: { Cookie: cookie },
+  });
+  assert.equal(protectedResponse.status, 401);
+});
+
+test("malformed session cookies do not cause a server error", async () => {
+  const baseUrl = await startServer(async () => sentinelResponse([]));
+
+  const response = await fetch(`${baseUrl}/bff/transactions`, {
+    headers: { Cookie: "sentinel_bff_session=%invalid" },
+  });
+
+  assert.equal(response.status, 401);
+});

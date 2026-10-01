@@ -38,9 +38,10 @@ An administrator can revoke a key with
 `PATCH /api/integrations/{id}/status` and `{"active":false}`. Revoked or
 unknown keys receive HTTP 401. The `V1__create_integrations.sql` Flyway
 migration creates the required production table while `ddl-auto=validate`
-remains unchanged. The legacy `/api/auth/register` and `/api/auth/login`
-routes are disabled because Sentinel uses API keys for external integrations;
-the database-backed `User`/`ADMIN` foundation remains for administration.
+remains unchanged. The public `/api/auth/register` and `/api/auth/login`
+routes remain available for the database-backed `User`/`ADMIN` foundation.
+They are not used for external server integrations; those callers use
+`X-API-Key` instead.
 
 ## Schema management
 
