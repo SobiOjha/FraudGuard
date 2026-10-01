@@ -70,7 +70,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/integrations/**")
                         .hasRole("ADMIN")
                         .requestMatchers("/api/auth/**")
-                        .denyAll()
+                        .permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**")
                         .permitAll()
                         .requestMatchers("/api/transactions/**")

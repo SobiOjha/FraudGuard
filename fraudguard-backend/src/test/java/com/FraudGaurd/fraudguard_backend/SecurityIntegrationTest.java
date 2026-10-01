@@ -228,21 +228,27 @@ class SecurityIntegrationTest {
     }
 
     @Test
-    void legacyRegistrationEndpointIsDisabled() throws Exception {
+    void registrationEndpointIsPublic() throws Exception {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"user\",\"password\":\"Password123\"}"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("Authentication required"));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.username").value("user"))
+                .andExpect(jsonPath("$.role").value("USER"))
+                .andExpect(jsonPath("$.password").doesNotExist());
     }
 
     @Test
-    void legacyLoginEndpointIsDisabled() throws Exception {
+    void loginEndpointIsPublic() throws Exception {
+        saveUser("user", UserRole.USER, "Password123");
+
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"user\",\"password\":\"Password123\"}"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("Authentication required"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("user"))
+                .andExpect(jsonPath("$.role").value("USER"))
+                .andExpect(jsonPath("$.password").doesNotExist());
     }
 
     @Test
