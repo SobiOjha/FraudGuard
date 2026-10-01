@@ -9,6 +9,7 @@ import com.FraudGaurd.fraudguard_backend.service.TransactionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +18,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/transactions")
+@SecurityRequirement(name = "apiKeyAuth")
 @CrossOrigin(origins = {
         "http://localhost:5173",
         "https://sentinel-frontend-5l8x.onrender.com"
