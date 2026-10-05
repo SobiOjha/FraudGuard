@@ -30,6 +30,7 @@ function createConfig(overrides = {}) {
     username: process.env.BFF_USERNAME,
     password: process.env.BFF_PASSWORD,
     secureCookies: process.env.NODE_ENV === "production",
+    logger: console,
     ...overrides,
   };
 
@@ -217,6 +218,15 @@ function matchProxyRoute(method, pathname) {
   return null;
 }
 
+function categorizeTransportError(error) {
+  if (!error || typeof error !== "object") return "network_error";
+  if (error.name === "AbortError" || error.name === "TimeoutError") return "timeout";
+  if (error.code === "ECONNREFUSED") return "connection_refused";
+  if (error.code === "ENOTFOUND") return "dns_lookup_failed";
+  if (error.code === "UND_ERR_CONNECT_TIMEOUT") return "connect_timeout";
+  return "fetch_failed";
+}
+
 async function proxyToSentinel(
   request,
   response,
@@ -224,6 +234,9 @@ async function proxyToSentinel(
   config,
   fetchImpl
 ) {
+  const correlationId = randomBytes(6).toString("hex");
+  const startTime = Date.now();
+
   let body;
   if (request.method === "POST" || request.method === "PUT") {
     try {
@@ -250,10 +263,20 @@ async function proxyToSentinel(
         body,
       }
     );
-  } catch {
+  } catch (error) {
+    const durationMs = Date.now() - startTime;
+    const errorCategory = categorizeTransportError(error);
+    config.logger.error(
+      `[BFF proxy] id=${correlationId} route=${route.backendPath} upstream_error=${errorCategory} duration_ms=${durationMs}`
+    );
     writeError(response, 502, "Sentinel backend unavailable");
     return;
   }
+
+  const durationMs = Date.now() - startTime;
+  config.logger.log(
+    `[BFF proxy] id=${correlationId} route=${route.backendPath} upstream_status=${sentinelResponse.status} duration_ms=${durationMs}`
+  );
 
   const responseBody = Buffer.from(await sentinelResponse.arrayBuffer());
   setSecurityHeaders(response);

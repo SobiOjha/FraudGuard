@@ -221,3 +221,140 @@ test("malformed session cookies do not cause a server error", async () => {
 
   assert.equal(response.status, 401);
 });
+
+test("logs correlation-tracked diagnostic info for successful upstream responses without exposing secrets", async () => {
+  const logs = [];
+  const mockLogger = {
+    log: (...args) => logs.push(args.join(" ")),
+    error: (...args) => logs.push(args.join(" ")),
+  };
+
+  const baseUrl = await startServer(
+    async () => sentinelResponse({ totalTransactions: 10 }),
+    { logger: mockLogger }
+  );
+
+  const cookie = await login(baseUrl);
+  const response = await fetch(`${baseUrl}/bff/transactions/dashboard/stats`, {
+    headers: { Cookie: cookie },
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(logs.length, 1);
+  const logLine = logs[0];
+  assert.match(
+    logLine,
+    /^\[BFF proxy\] id=[0-9a-f]{12} route=\/api\/transactions\/dashboard\/stats upstream_status=200 duration_ms=\d+$/
+  );
+  assert.equal(logLine.includes(serverApiKey), false);
+  assert.equal(logLine.includes(credentials.password), false);
+  assert.equal(logLine.includes(cookie), false);
+});
+
+test("logs correlation-tracked diagnostic info for upstream 429 responses without exposing secrets", async () => {
+  const logs = [];
+  const mockLogger = {
+    log: (...args) => logs.push(args.join(" ")),
+    error: (...args) => logs.push(args.join(" ")),
+  };
+
+  const baseUrl = await startServer(
+    async () =>
+      new Response("Too Many Requests", {
+        status: 429,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    { logger: mockLogger }
+  );
+
+  const cookie = await login(baseUrl);
+  const response = await fetch(`${baseUrl}/bff/transactions/dashboard/stats`, {
+    headers: { Cookie: cookie },
+  });
+
+  assert.equal(response.status, 429);
+  assert.equal(await response.text(), "Too Many Requests");
+  assert.equal(logs.length, 1);
+  const logLine = logs[0];
+  assert.match(
+    logLine,
+    /^\[BFF proxy\] id=[0-9a-f]{12} route=\/api\/transactions\/dashboard\/stats upstream_status=429 duration_ms=\d+$/
+  );
+  assert.equal(logLine.includes(serverApiKey), false);
+  assert.equal(logLine.includes(credentials.password), false);
+  assert.equal(logLine.includes(cookie), false);
+  assert.equal(logLine.includes("Too Many Requests"), false);
+});
+
+test("logs safe transport error category and returns 502 when upstream is unreachable", async () => {
+  const logs = [];
+  const mockLogger = {
+    log: (...args) => logs.push(args.join(" ")),
+    error: (...args) => logs.push(args.join(" ")),
+  };
+
+  const baseUrl = await startServer(
+    async () => {
+      const err = new Error("connect ECONNREFUSED 127.0.0.1:8080");
+      err.code = "ECONNREFUSED";
+      throw err;
+    },
+    { logger: mockLogger }
+  );
+
+  const cookie = await login(baseUrl);
+  const response = await fetch(`${baseUrl}/bff/transactions`, {
+    headers: { Cookie: cookie },
+  });
+
+  assert.equal(response.status, 502);
+  assert.deepEqual(await response.json(), {
+    error: "Sentinel backend unavailable",
+  });
+  assert.equal(logs.length, 1);
+  const logLine = logs[0];
+  assert.match(
+    logLine,
+    /^\[BFF proxy\] id=[0-9a-f]{12} route=\/api\/transactions upstream_error=connection_refused duration_ms=\d+$/
+  );
+  assert.equal(logLine.includes(serverApiKey), false);
+  assert.equal(logLine.includes(credentials.password), false);
+  assert.equal(logLine.includes(cookie), false);
+  assert.equal(logLine.includes("ECONNREFUSED 127.0.0.1:8080"), false);
+});
+
+test("logs safe generic fetch_failed category and returns 502 for unrecognized transport errors", async () => {
+  const logs = [];
+  const mockLogger = {
+    log: (...args) => logs.push(args.join(" ")),
+    error: (...args) => logs.push(args.join(" ")),
+  };
+
+  const sensitiveMessage = "internal connection drop with secret token";
+  const baseUrl = await startServer(
+    async () => {
+      throw new Error(sensitiveMessage);
+    },
+    { logger: mockLogger }
+  );
+
+  const cookie = await login(baseUrl);
+  const response = await fetch(`${baseUrl}/bff/transactions`, {
+    headers: { Cookie: cookie },
+  });
+
+  assert.equal(response.status, 502);
+  assert.deepEqual(await response.json(), {
+    error: "Sentinel backend unavailable",
+  });
+  assert.equal(logs.length, 1);
+  const logLine = logs[0];
+  assert.match(
+    logLine,
+    /^\[BFF proxy\] id=[0-9a-f]{12} route=\/api\/transactions upstream_error=fetch_failed duration_ms=\d+$/
+  );
+  assert.equal(logLine.includes(serverApiKey), false);
+  assert.equal(logLine.includes(credentials.password), false);
+  assert.equal(logLine.includes(cookie), false);
+  assert.equal(logLine.includes(sensitiveMessage), false);
+});
