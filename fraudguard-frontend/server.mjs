@@ -227,15 +227,52 @@ function categorizeTransportError(error) {
   return "fetch_failed";
 }
 
+function safeResponsePreview(responseBody, contentType) {
+  const text = responseBody.toString("utf8").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+
+  const knownRateLimitMessage = text.match(
+    /too many requests|rate limit(?:ed)?|request rate limited/i
+  );
+  if (knownRateLimitMessage) return knownRateLimitMessage[0];
+  return contentType?.toLowerCase().includes("json")
+    ? "[json_body_redacted]"
+    : "[body_redacted]";
+}
+
+function safeUpstreamHeaders(response) {
+  return [
+    ["server", "upstream_server"],
+    ["x-render-origin-server", "upstream_render_origin"],
+    ["cf-cache-status", "upstream_cf_cache_status"],
+    ["retry-after", "upstream_retry_after"],
+    ["rndr-id", "upstream_rndr_id"],
+  ]
+    .map(([headerName, logName]) => {
+      const value = response.headers.get(headerName);
+      return value ? `${logName}=${encodeURIComponent(value)}` : null;
+    })
+    .filter(Boolean)
+    .join(" ");
+}
+
+function diagnosticRoute(route) {
+  return route.replace(
+    /^(\/api\/transactions\/)\d+(\/fraud-action)$/,
+    "$1:id$2"
+  );
+}
+
 async function proxyToSentinel(
   request,
   response,
   route,
   config,
-  fetchImpl
+  fetchImpl,
+  correlationId
 ) {
-  const correlationId = randomBytes(6).toString("hex");
   const startTime = Date.now();
+  const logRoute = diagnosticRoute(route.backendPath);
 
   let body;
   if (request.method === "POST" || request.method === "PUT") {
@@ -267,24 +304,29 @@ async function proxyToSentinel(
     const durationMs = Date.now() - startTime;
     const errorCategory = categorizeTransportError(error);
     config.logger.error(
-      `[BFF proxy] id=${correlationId} route=${route.backendPath} upstream_error=${errorCategory} duration_ms=${durationMs}`
+      `[BFF proxy] id=${correlationId} route=${logRoute} upstream_error=${errorCategory} duration_ms=${durationMs}`
     );
     writeError(response, 502, "Sentinel backend unavailable");
     return;
   }
 
+  const responseBody = Buffer.from(await sentinelResponse.arrayBuffer());
   const durationMs = Date.now() - startTime;
+  const contentType = sentinelResponse.headers.get("content-type") || "unknown";
+  const upstreamHost = new URL(config.backendUrl).hostname;
+  const responsePreview = encodeURIComponent(
+    safeResponsePreview(responseBody, contentType)
+  );
+  const upstreamHeaders = safeUpstreamHeaders(sentinelResponse);
   config.logger.log(
-    `[BFF proxy] id=${correlationId} route=${route.backendPath} upstream_status=${sentinelResponse.status} duration_ms=${durationMs}`
+    `[BFF proxy] id=${correlationId} route=${logRoute} upstream_status=${sentinelResponse.status} upstream_host=${upstreamHost} upstream_content_type=${encodeURIComponent(contentType)} upstream_body_bytes=${responseBody.length} upstream_body_preview=${responsePreview} duration_ms=${durationMs}${upstreamHeaders ? ` ${upstreamHeaders}` : ""}`
   );
 
-  const responseBody = Buffer.from(await sentinelResponse.arrayBuffer());
   setSecurityHeaders(response);
   response.statusCode = sentinelResponse.status;
   response.setHeader("Cache-Control", "no-store");
 
-  const contentType = sentinelResponse.headers.get("content-type");
-  if (contentType) response.setHeader("Content-Type", contentType);
+  if (contentType !== "unknown") response.setHeader("Content-Type", contentType);
 
   response.end(responseBody);
 }
@@ -401,13 +443,20 @@ export function createBffServer(overrides = {}, fetchImpl = fetch) {
       }
 
       if (pathname.startsWith("/bff/")) {
+        const correlationId = randomBytes(6).toString("hex");
         if (!getActiveSession(request, sessions)) {
+          config.logger.log(
+            `[BFF request] id=${correlationId} method=${request.method} request_rejected=authentication_required`
+          );
           writeError(response, 401, "Authentication required");
           return;
         }
 
         const route = matchProxyRoute(request.method, pathname);
         if (!route) {
+          config.logger.log(
+            `[BFF request] id=${correlationId} method=${request.method} request_rejected=route_not_found`
+          );
           writeError(response, 404, "BFF route not found");
           return;
         }
@@ -417,7 +466,8 @@ export function createBffServer(overrides = {}, fetchImpl = fetch) {
           response,
           route,
           config,
-          fetchImpl
+          fetchImpl,
+          correlationId
         );
         return;
       }

@@ -61,15 +61,25 @@ function sentinelResponse(body, status = 200) {
 
 test("rejects unauthenticated BFF requests", async () => {
   const calls = [];
+  const logs = [];
+  const mockLogger = {
+    log: (...args) => logs.push(args.join(" ")),
+    error: (...args) => logs.push(args.join(" ")),
+  };
   const baseUrl = await startServer(async (...args) => {
     calls.push(args);
     return sentinelResponse([]);
-  });
+  }, { logger: mockLogger });
 
   const response = await fetch(`${baseUrl}/bff/transactions`);
   assert.equal(response.status, 401);
   assert.deepEqual(await response.json(), { error: "Authentication required" });
   assert.equal(calls.length, 0);
+  assert.equal(logs.length, 1);
+  assert.match(
+    logs[0],
+    /^\[BFF request\] id=[0-9a-f]{12} method=GET request_rejected=authentication_required$/
+  );
 });
 
 test("authenticates the browser and proxies GET with the server-only API key", async () => {
@@ -100,10 +110,15 @@ test("authenticates the browser and proxies GET with the server-only API key", a
 
 test("proxies the supported POST and PUT routes", async () => {
   const calls = [];
+  const logs = [];
+  const mockLogger = {
+    log: (...args) => logs.push(args.join(" ")),
+    error: (...args) => logs.push(args.join(" ")),
+  };
   const baseUrl = await startServer(async (...args) => {
     calls.push(args);
     return sentinelResponse({ ok: true });
-  });
+  }, { logger: mockLogger });
 
   const cookie = await login(baseUrl);
   const payload = {
@@ -140,6 +155,9 @@ test("proxies the supported POST and PUT routes", async () => {
   assert.equal(calls[1][0], "https://sentinel.example/api/transactions/42/fraud-action");
   assert.equal(calls[0][1].headers["X-API-Key"], serverApiKey);
   assert.equal(calls[1][1].headers["X-API-Key"], serverApiKey);
+  assert.equal(logs.length, 2);
+  assert.match(logs[1], /route=\/api\/transactions\/:id\/fraud-action/);
+  assert.equal(logs[1].includes("/api/transactions/42/fraud-action"), false);
 });
 
 test("propagates Sentinel errors without exposing the API key", async () => {
@@ -244,7 +262,7 @@ test("logs correlation-tracked diagnostic info for successful upstream responses
   const logLine = logs[0];
   assert.match(
     logLine,
-    /^\[BFF proxy\] id=[0-9a-f]{12} route=\/api\/transactions\/dashboard\/stats upstream_status=200 duration_ms=\d+$/
+    /^\[BFF proxy\] id=[0-9a-f]{12} route=\/api\/transactions\/dashboard\/stats upstream_status=200 upstream_host=sentinel\.example upstream_content_type=application%2Fjson upstream_body_bytes=24 upstream_body_preview=%5Bjson_body_redacted%5D duration_ms=\d+$/
   );
   assert.equal(logLine.includes(serverApiKey), false);
   assert.equal(logLine.includes(credentials.password), false);
@@ -278,12 +296,42 @@ test("logs correlation-tracked diagnostic info for upstream 429 responses withou
   const logLine = logs[0];
   assert.match(
     logLine,
-    /^\[BFF proxy\] id=[0-9a-f]{12} route=\/api\/transactions\/dashboard\/stats upstream_status=429 duration_ms=\d+$/
+    /^\[BFF proxy\] id=[0-9a-f]{12} route=\/api\/transactions\/dashboard\/stats upstream_status=429 upstream_host=sentinel\.example upstream_content_type=text%2Fplain upstream_body_bytes=17 upstream_body_preview=Too%20Many%20Requests duration_ms=\d+$/
   );
   assert.equal(logLine.includes(serverApiKey), false);
   assert.equal(logLine.includes(credentials.password), false);
   assert.equal(logLine.includes(cookie), false);
   assert.equal(logLine.includes("Too Many Requests"), false);
+});
+
+test("redacts sensitive JSON response fields in diagnostics", async () => {
+  const logs = [];
+  const mockLogger = {
+    log: (...args) => logs.push(args.join(" ")),
+    error: (...args) => logs.push(args.join(" ")),
+  };
+
+  const baseUrl = await startServer(
+    async () =>
+      sentinelResponse({
+        error: "generic failure",
+        apiKey: "response-secret",
+        nested: { token: "session-secret" },
+      }, 429),
+    { logger: mockLogger }
+  );
+
+  const cookie = await login(baseUrl);
+  const response = await fetch(`${baseUrl}/bff/transactions/dashboard/stats`, {
+    headers: { Cookie: cookie },
+  });
+
+  assert.equal(response.status, 429);
+  assert.equal(logs.length, 1);
+  assert.match(logs[0], /upstream_body_preview=/);
+  assert.equal(logs[0].includes("response-secret"), false);
+  assert.equal(logs[0].includes("session-secret"), false);
+  assert.equal(logs[0].includes("%5Bjson_body_redacted%5D"), true);
 });
 
 test("logs safe transport error category and returns 502 when upstream is unreachable", async () => {
