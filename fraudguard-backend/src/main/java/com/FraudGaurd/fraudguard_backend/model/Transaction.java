@@ -15,8 +15,8 @@ public class Transaction {
     private Long id;
 
     @JsonIgnore
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "integration_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "integration_id", nullable = true)
     private Integration integration;
 
     private String userId;

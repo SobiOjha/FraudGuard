@@ -191,6 +191,7 @@ class TransactionServiceTest {
         Transaction transaction =
                 transactionCaptor.getValue();
 
+        assertEquals(integration, transaction.getIntegration());
         assertEquals("U1001", transaction.getUserId());
         assertEquals(7, transaction.getRecentTransactionCount());
         assertEquals(7, transaction.getTransactionsInTimeWindow());

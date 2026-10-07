@@ -10,6 +10,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -386,6 +387,130 @@ class TransactionRepositoryTest {
                                 integration,
                                 "BLOCK"
                         )
+        );
+    }
+
+
+    @Test
+    void shouldReturnMultipleTransactionsForIntegrationHistory() {
+
+        transactionRepository.save(
+                createTransaction(
+                        "U1001",
+                        "RECIPIENT-01",
+                        "DEVICE-01",
+                        LocalDateTime.now().minusMinutes(2),
+                        20,
+                        "APPROVE"
+                )
+        );
+
+        transactionRepository.save(
+                createTransaction(
+                        "U1002",
+                        "RECIPIENT-02",
+                        "DEVICE-02",
+                        LocalDateTime.now().minusMinutes(1),
+                        75,
+                        "FLAG"
+                )
+        );
+
+        List<Transaction> history =
+                transactionRepository.findAllByIntegration(integration);
+
+        assertEquals(2, history.size());
+    }
+
+
+    @Test
+    void nullOwnedTransactionsAreExcludedFromIntegrationScopedQueries() {
+
+        LocalDateTime now = LocalDateTime.now();
+        Transaction legacyTransaction = createTransaction(
+                "U1001",
+                "RECIPIENT-LEGACY",
+                "DEVICE-LEGACY",
+                now.minusMinutes(1),
+                90,
+                "BLOCK"
+        );
+        legacyTransaction.setIntegration(null);
+
+        Transaction savedLegacyTransaction =
+                transactionRepository.save(legacyTransaction);
+        transactionRepository.flush();
+
+        assertEquals(
+                0,
+                transactionRepository.findAllByIntegration(integration).size()
+        );
+        assertEquals(0, transactionRepository.countByIntegration(integration));
+        assertEquals(
+                0,
+                transactionRepository
+                        .countByIntegrationAndRiskScoreGreaterThanEqual(
+                                integration,
+                                60
+                        )
+        );
+        assertEquals(
+                0,
+                transactionRepository.countByIntegrationAndRiskScoreLessThan(
+                        integration,
+                        30
+                )
+        );
+        assertEquals(
+                0,
+                transactionRepository.countByIntegrationAndFraudAction(
+                        integration,
+                        "BLOCK"
+                )
+        );
+        assertEquals(
+                null,
+                transactionRepository.findAverageRiskScore(integration)
+        );
+        assertEquals(
+                0,
+                transactionRepository.countRecentTransactions(
+                        integration,
+                        "U1001",
+                        now.minusHours(24)
+                )
+        );
+        assertEquals(
+                0,
+                transactionRepository.countTransactionsToRecipient(
+                        integration,
+                        "U1001",
+                        "RECIPIENT-LEGACY",
+                        now.minusHours(24)
+                )
+        );
+        assertEquals(
+                0,
+                transactionRepository.countPreviousTransactionsToRecipient(
+                        integration,
+                        "U1001",
+                        "RECIPIENT-LEGACY"
+                )
+        );
+        assertEquals(
+                0,
+                transactionRepository.countPreviousTransactionsFromDevice(
+                        integration,
+                        "U1001",
+                        "DEVICE-LEGACY"
+                )
+        );
+        assertEquals(
+                Optional.empty(),
+                transactionRepository.findByIdAndIntegration(
+                        savedLegacyTransaction.getId(),
+                        integration
+                )
         );
     }
 
